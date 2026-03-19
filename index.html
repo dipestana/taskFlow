@@ -10,32 +10,32 @@
 
   /* ── THEMES ── */
   :root, [data-theme="dark"] {
-    --bg:       #18181b;
-    --surface:  #1f1f23;
-    --surface2: #27272b;
-    --border:   #363639;
-    --accent:   #7c9cff;
-    --accent2:  #a78bfa;
-    --text:     #f4f4f5;
-    --text-muted: #71717a;
-    --text-dim:   #a1a1aa;
-    --danger:   #f87171;
-    --today-bg: #7c9cff18;
+    --bg:       #1a1815;
+    --surface:  #222019;
+    --surface2: #2a271f;
+    --border:   #3a3628;
+    --accent:   #d4b896;
+    --accent2:  #b89e7c;
+    --text:     #f0ead8;
+    --text-muted: #7a7060;
+    --text-dim:   #a09078;
+    --danger:   #c97060;
+    --today-bg: #d4b89618;
     --shadow:   0 2px 12px rgba(0,0,0,.4);
   }
 
   [data-theme="light"] {
-    --bg:       #f5f0e8;
-    --surface:  #ede8de;
-    --surface2: #e4ddd2;
-    --border:   #d4ccc0;
-    --accent:   #5b7fd4;
-    --accent2:  #8b6fd4;
-    --text:     #2c2a26;
-    --text-muted: #8c836e;
-    --text-dim:   #6b6254;
-    --danger:   #c0574a;
-    --today-bg: #5b7fd418;
+    --bg:       #f5f0e6;
+    --surface:  #eee8da;
+    --surface2: #e6dece;
+    --border:   #d5cab8;
+    --accent:   #a07848;
+    --accent2:  #8a6840;
+    --text:     #2c2820;
+    --text-muted: #8a7e68;
+    --text-dim:   #6a5e48;
+    --danger:   #b85848;
+    --today-bg: #a0784818;
     --shadow:   0 2px 12px rgba(0,0,0,.1);
   }
 
@@ -108,10 +108,18 @@
   .view-btn.active { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
 
   /* MAIN LAYOUT */
+  /* SPLITTER */
+  .splitter { width:10px; flex-shrink:0; position:sticky; top:56px; height:calc(100vh - 56px); cursor:col-resize; display:flex; align-items:center; justify-content:center; border-left:1px solid var(--border); border-right:1px solid var(--border); transition:background .15s; user-select:none; z-index:10; }
+  .splitter:hover, .splitter.resizing { background:var(--border); border-left-color:var(--text-muted); border-right-color:var(--text-muted); }
+  .splitter::before { content:""; width:2px; height:40px; background:var(--border); border-radius:2px; transition:background .15s; pointer-events:none; }
+  .splitter:hover::before, .splitter.resizing::before { background:var(--text-muted); }
+
+
+  .sidebar.collapsed { width:0 !important; padding-left:0; padding-right:0; opacity:0; pointer-events:none; overflow:hidden; }
   main { flex:1; display:flex; overflow:hidden; }
 
   /* SIDEBAR */
-  .sidebar { width:280px; min-width:280px; border-right:1px solid var(--border); padding:20px 16px; display:flex; flex-direction:column; gap:18px; overflow-y:auto; height:calc(100vh - 56px); position:sticky; top:56px; transition:transform .3s; }
+  .sidebar { width:280px; min-width:0; padding:20px 16px; display:flex; flex-direction:column; gap:18px; overflow-y:auto; overflow-x:hidden; height:calc(100vh - 56px); position:sticky; top:56px; transition:width .25s,padding .25s,opacity .2s; flex-shrink:0; }
   .sidebar-section-title { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text-muted); font-family:'DM Mono',monospace; margin-bottom:8px; }
   .add-task-form { display:flex; flex-direction:column; gap:9px; }
   .date-label { font-size:10px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:3px; font-family:'DM Mono',monospace; }
@@ -359,6 +367,7 @@
       </div>
     </aside>
 
+    <div class="splitter" id="splitter"></div>
     <section class="content">
       <div class="list-view" id="list-view"></div>
       <div class="calendar-view" id="calendar-view" style="display:none">
@@ -505,7 +514,7 @@ function dateLabel(str){
   const td=new Date(TODAY+'T00:00:00'),d=new Date(str+'T00:00:00');
   const diff=Math.round((d-td)/86400000);
   if(diff===1)return'Mañana';if(diff===-1)return'Ayer';
-  if(diff>0&&diff<7)return['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.getDay()];
+  if(diff>0&&diff<7)return['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][d.getDay()];
   return formatDate(str);
 }
 
@@ -777,3 +786,57 @@ function render(){updateStats();if(currentView==='list')renderList();else render
 </script>
 </body>
 </html>
+<script>
+// SPLITTER
+const splitter = document.getElementById('splitter');
+const sidebar  = document.querySelector('.sidebar');
+let sidebarWidth = 280;
+let isCollapsed  = false;
+let isResizing   = false;
+let mouseDownTime = 0;
+
+// Double-click to collapse/expand
+splitter.addEventListener('dblclick', () => {
+  isCollapsed = !isCollapsed;
+  if (isCollapsed) {
+    sidebar.classList.add('collapsed');
+    splitter.title = 'Doble clic para expandir';
+  } else {
+    sidebar.classList.remove('collapsed');
+    sidebar.style.width = sidebarWidth + 'px';
+    splitter.title = 'Doble clic para colapsar · Arrastrar para redimensionar';
+  }
+});
+
+// Drag to resize
+splitter.addEventListener('mousedown', e => {
+  if (isCollapsed) return;
+  mouseDownTime = Date.now();
+  isResizing = true;
+  splitter.classList.add('resizing');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!isResizing) return;
+  const rect = sidebar.getBoundingClientRect();
+  const newW = e.clientX - rect.left;
+  if (newW < 140 || newW > 520) return;
+  sidebarWidth = newW;
+  sidebar.style.width = newW + 'px';
+  sidebar.style.transition = 'none';
+});
+
+document.addEventListener('mouseup', () => {
+  if (!isResizing) return;
+  isResizing = false;
+  splitter.classList.remove('resizing');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  sidebar.style.transition = '';
+});
+
+splitter.title = 'Doble clic para colapsar · Arrastrar para redimensionar';
+</script>
