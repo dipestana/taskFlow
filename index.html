@@ -172,7 +172,7 @@
   .day-divider { height:1px; background:var(--border); margin-bottom:9px; }
   .day-group.is-today .day-divider { background:var(--accent); opacity:.5; }
 
-  .task-card { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:5px; transition:all .2s; position:relative; overflow:hidden; }
+  .task-card { display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:0; transition:all .2s; position:relative; overflow:hidden; }
   .task-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; }
   .task-card[data-p="low"]::before  { background:#86efac; }
   .task-card[data-p="mid"]::before  { background:#fcd34d; }
@@ -202,6 +202,47 @@
   .task-delete { background:none; border:none; color:var(--text-muted); cursor:pointer; opacity:0; padding:4px; transition:all .15s; border-radius:4px; display:flex; align-items:center; flex-shrink:0; }
   .task-card:hover .task-delete { opacity:1; }
   .task-delete:hover { color:var(--danger); }
+  /* SUBTASKS */
+  .task-wrapper { margin-bottom:5px; }
+  .task-wrapper .task-card { margin-bottom:0; border-radius:10px 10px 0 0; }
+  .task-wrapper.expanded .task-card { border-bottom-color:transparent; }
+  .task-expand-btn { background:none; border:none; color:var(--text-muted); cursor:pointer; padding:3px 5px; display:flex; align-items:center; font-size:10px; transition:transform .2s,color .15s; flex-shrink:0; }
+  .task-expand-btn:hover { color:var(--accent); }
+  .task-expand-btn.open { transform:rotate(90deg); }
+  .subtask-count { font-family:'DM Mono',monospace; font-size:10px; color:var(--text-muted); background:var(--surface2); border:1px solid var(--border); padding:1px 6px; border-radius:100px; flex-shrink:0; }
+  .subtasks-panel { background:var(--surface2); border:1px solid var(--border); border-top:none; border-radius:0 0 10px 10px; padding:8px 10px; display:none; flex-direction:column; gap:5px; }
+  .subtasks-panel.open { display:flex; }
+  .subtask-row { display:flex; align-items:center; gap:8px; padding:6px 8px; background:var(--surface); border:1px solid var(--border); border-radius:8px; position:relative; overflow:hidden; }
+  .subtask-row::before { content:''; position:absolute; left:0; top:0; bottom:0; width:2px; }
+  .subtask-row[data-p="low"]::before  { background:#86efac; }
+  .subtask-row[data-p="mid"]::before  { background:#fcd34d; }
+  .subtask-row[data-p="high"]::before { background:#f87171; }
+  .subtask-row.done .subtask-title { text-decoration:line-through; opacity:.5; }
+  .subtask-check { width:16px; height:16px; border-radius:50%; border:2px solid var(--border); cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:none; transition:all .2s; }
+  .subtask-check:hover { border-color:var(--accent); }
+  .subtask-row.done .subtask-check { background:var(--accent); border-color:var(--accent); }
+  .subtask-check svg { display:none; }
+  .subtask-row.done .subtask-check svg { display:block; }
+  .subtask-body { flex:1; min-width:0; }
+  .subtask-title { font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .subtask-meta { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+  .subtask-delete { background:none; border:none; color:var(--text-muted); cursor:pointer; opacity:0; padding:3px; transition:all .15s; border-radius:4px; display:flex; align-items:center; }
+  .subtask-row:hover .subtask-delete { opacity:1; }
+  .subtask-delete:hover { color:var(--danger); }
+  .add-subtask-row { display:flex; gap:6px; align-items:center; margin-top:2px; padding-top:6px; border-top:1px solid var(--border); }
+  .add-subtask-input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:6px 10px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; outline:none; transition:border-color .2s; }
+  .add-subtask-input:focus { border-color:var(--accent); }
+  .add-subtask-input::placeholder { color:var(--text-muted); }
+  .subtask-prio-dots { display:flex; gap:4px; align-items:center; }
+  .subtask-prio-dot { width:12px; height:12px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:transform .15s; flex-shrink:0; }
+  .subtask-prio-dot:hover { transform:scale(1.2); }
+  .subtask-prio-dot.selected { border-color:var(--text); }
+  .subtask-prio-dot[data-p="low"]  { background:#86efac; }
+  .subtask-prio-dot[data-p="mid"]  { background:#fcd34d; }
+  .subtask-prio-dot[data-p="high"] { background:#f87171; }
+  .add-subtask-btn { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:12px; cursor:pointer; font-family:'DM Sans',sans-serif; white-space:nowrap; transition:opacity .15s; }
+  .add-subtask-btn:hover { opacity:.8; }
+
 
   /* CALENDAR */
   .calendar-view { display:flex; flex-direction:column; gap:16px; }
@@ -682,24 +723,106 @@ function updateStats(){
   document.getElementById('s-total').textContent   =tasks.length;
 }
 
-function taskCardHTML(t){
-  const cat={work:'Trabajo',personal:'Personal',health:'Salud',learn:'Aprender',other:'Otro'};
-  return`<div class="task-card ${t.done?'done':''}" data-p="${t.priority}" data-id="${t.id}" draggable="true">
-    <button class="task-check" onclick="toggleDone('${t.id}')">
-      <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 3.5L4 6.5L9 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+const cat={work:'Trabajo',personal:'Personal',health:'Salud',learn:'Aprender',other:'Otro'};
+const expandedTasks = new Set();
+const subPrios = {};
+
+function subtaskRowHTML(s, parentId) {
+  return `<div class="subtask-row ${s.done?'done':''}" data-p="${s.priority||'mid'}">
+    <button class="subtask-check" onclick="toggleSubDone('${parentId}','${s.id}')">
+      <svg width="8" height="6" viewBox="0 0 10 8" fill="none"><path d="M1 3.5L4 6.5L9 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
-    <div class="task-body">
-      <div class="task-title">${escH(t.title)}</div>
-      ${t.desc?`<div class="task-desc">${escH(t.desc)}</div>`:''}
-    </div>
-    <div class="task-meta">
-      <span class="task-tag" data-c="${t.category}">${cat[t.category]||t.category}</span>
-      <button class="task-delete" onclick="deleteTask('${t.id}')">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <div class="subtask-body"><div class="subtask-title">${escH(s.title)}</div></div>
+    <div class="subtask-meta">
+      <button class="subtask-delete" onclick="deleteSubtask('${parentId}','${s.id}')">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
     </div>
   </div>`;
 }
+
+function taskCardHTML(t){
+  const subs = t.subtasks || [];
+  const doneCount = subs.filter(s=>s.done).length;
+  const isExp = expandedTasks.has(t.id);
+  const subPrio = subPrios[t.id] || 'mid';
+  return`<div class="task-wrapper ${isExp?'expanded':''}" id="wrap-${t.id}">
+    <div class="task-card ${t.done?'done':''}" data-p="${t.priority}" data-id="${t.id}" draggable="true">
+      <button class="task-check" onclick="toggleDone('${t.id}')">
+        <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 3.5L4 6.5L9 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="task-body" style="cursor:default">
+        <div class="task-title">${escH(t.title)}</div>
+        ${t.desc?`<div class="task-desc">${escH(t.desc)}</div>`:''}
+      </div>
+      <div class="task-meta">
+        ${subs.length>0?`<span class="subtask-count">${doneCount}/${subs.length}</span>`:''}
+        <span class="task-tag" data-c="${t.category}">${cat[t.category]||t.category}</span>
+        <button class="task-expand-btn ${isExp?'open':''}" onclick="toggleExpand('${t.id}')" title="Ver subtareas">
+          <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="task-delete" onclick="deleteTask('${t.id}')">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="subtasks-panel ${isExp?'open':''}" id="subs-${t.id}">
+      ${subs.map(s=>subtaskRowHTML(s,t.id)).join('')}
+      <div class="add-subtask-row">
+        <input class="add-subtask-input" id="si-${t.id}" placeholder="Nueva subtarea..." onkeydown="if(event.key==='Enter')addSubtask('${t.id}')">
+
+        <div class="subtask-prio-dots" id="sp-${t.id}">
+          <div class="subtask-prio-dot ${subPrio==='low'?'selected':''}" data-p="low" onclick="setSubPrio('${t.id}','low',this)"></div>
+          <div class="subtask-prio-dot ${subPrio==='mid'?'selected':''}" data-p="mid" onclick="setSubPrio('${t.id}','mid',this)"></div>
+          <div class="subtask-prio-dot ${subPrio==='high'?'selected':''}" data-p="high" onclick="setSubPrio('${t.id}','high',this)"></div>
+        </div>
+        <button class="add-subtask-btn" onclick="addSubtask('${t.id}')">+ Añadir</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+window.toggleExpand = function(id) {
+  if(expandedTasks.has(id)) expandedTasks.delete(id);
+  else expandedTasks.add(id);
+  renderList();
+};
+
+window.setSubPrio = function(taskId, prio, el) {
+  subPrios[taskId] = prio;
+  el.closest('.subtask-prio-dots').querySelectorAll('.subtask-prio-dot').forEach(d=>d.classList.remove('selected'));
+  el.classList.add('selected');
+};
+
+window.addSubtask = async function(parentId) {
+  const inp = document.getElementById('si-'+parentId);
+  const title = inp ? inp.value.trim() : '';
+  if(!title) return;
+  const prio = subPrios[parentId] || 'mid';
+  const t = tasks.find(t=>t.id===parentId);
+  if(!t) return;
+  const subs = t.subtasks || [];
+  subs.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,5), title, priority:prio, done:false });
+  setSyncing(true);
+  await updateDoc(doc(db,'tasks',parentId),{subtasks:subs});
+  expandedTasks.add(parentId);
+};
+
+window.toggleSubDone = async function(parentId, subId) {
+  const t = tasks.find(t=>t.id===parentId);
+  if(!t) return;
+  const subs = (t.subtasks||[]).map(s=>s.id===subId?{...s,done:!s.done}:s);
+  setSyncing(true);
+  await updateDoc(doc(db,'tasks',parentId),{subtasks:subs});
+};
+
+window.deleteSubtask = async function(parentId, subId) {
+  const t = tasks.find(t=>t.id===parentId);
+  if(!t) return;
+  const subs = (t.subtasks||[]).filter(s=>s.id!==subId);
+  setSyncing(true);
+  await updateDoc(doc(db,'tasks',parentId),{subtasks:subs});
+};
 
 function renderList(){
   const lv=document.getElementById('list-view'), ft=filteredTasks();
