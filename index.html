@@ -226,6 +226,7 @@
   .subtask-body { flex:1; min-width:0; }
   .subtask-title { font-size:13px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .subtask-meta { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+  .subtask-date { font-family:'DM Mono',monospace; font-size:10px; color:var(--text-muted); }
   .subtask-delete { background:none; border:none; color:var(--text-muted); cursor:pointer; opacity:0; padding:3px; transition:all .15s; border-radius:4px; display:flex; align-items:center; }
   .subtask-row:hover .subtask-delete { opacity:1; }
   .subtask-delete:hover { color:var(--danger); }
@@ -233,6 +234,8 @@
   .add-subtask-input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:6px 10px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; outline:none; transition:border-color .2s; }
   .add-subtask-input:focus { border-color:var(--accent); }
   .add-subtask-input::placeholder { color:var(--text-muted); }
+  .add-subtask-date { width:110px; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--text); font-family:'DM Mono',monospace; font-size:11px; outline:none; }
+  .add-subtask-date:focus { border-color:var(--accent); }
   .subtask-prio-dots { display:flex; gap:4px; align-items:center; }
   .subtask-prio-dot { width:12px; height:12px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:transform .15s; flex-shrink:0; }
   .subtask-prio-dot:hover { transform:scale(1.2); }
@@ -494,7 +497,7 @@ import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBNgcyCwJh0OXcGI-pu-mW_BiW9K7BUycQ",
+  apiKey: "AIzaSyBzKr2GiLfzEygQ8Ho2X6GESeE33mZOIfk",
   authDomain: "taskflow-9d597.firebaseapp.com",
   projectId: "taskflow-9d597",
   storageBucket: "taskflow-9d597.firebasestorage.app",
@@ -734,6 +737,7 @@ function subtaskRowHTML(s, parentId) {
     </button>
     <div class="subtask-body"><div class="subtask-title">${escH(s.title)}</div></div>
     <div class="subtask-meta">
+      ${s.date?`<span class="subtask-date">${formatDate(s.date)}</span>`:''}
       <button class="subtask-delete" onclick="deleteSubtask('${parentId}','${s.id}')">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
@@ -770,7 +774,7 @@ function taskCardHTML(t){
       ${subs.map(s=>subtaskRowHTML(s,t.id)).join('')}
       <div class="add-subtask-row">
         <input class="add-subtask-input" id="si-${t.id}" placeholder="Nueva subtarea..." onkeydown="if(event.key==='Enter')addSubtask('${t.id}')">
-
+        <input type="date" class="add-subtask-date" id="sd-${t.id}" value="${t.date||''}">
         <div class="subtask-prio-dots" id="sp-${t.id}">
           <div class="subtask-prio-dot ${subPrio==='low'?'selected':''}" data-p="low" onclick="setSubPrio('${t.id}','low',this)"></div>
           <div class="subtask-prio-dot ${subPrio==='mid'?'selected':''}" data-p="mid" onclick="setSubPrio('${t.id}','mid',this)"></div>
@@ -798,11 +802,12 @@ window.addSubtask = async function(parentId) {
   const inp = document.getElementById('si-'+parentId);
   const title = inp ? inp.value.trim() : '';
   if(!title) return;
+  const date = document.getElementById('sd-'+parentId)?.value || null;
   const prio = subPrios[parentId] || 'mid';
   const t = tasks.find(t=>t.id===parentId);
   if(!t) return;
   const subs = t.subtasks || [];
-  subs.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,5), title, priority:prio, done:false });
+  subs.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,5), title, date, priority:prio, done:false });
   setSyncing(true);
   await updateDoc(doc(db,'tasks',parentId),{subtasks:subs});
   expandedTasks.add(parentId);
