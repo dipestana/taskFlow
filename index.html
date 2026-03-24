@@ -323,40 +323,16 @@
 </head>
 <body>
 
-<div id="loading-screen">
-  <div class="loading-logo">Task<span>flow</span></div>
-  <div class="loading-dot"></div>
-</div>
-
-<div id="auth-screen">
-  <div class="auth-box">
-    <div class="auth-logo">Task<span>flow</span></div>
-    <div class="auth-tabs">
-      <button class="auth-tab active" onclick="switchTab('login')">Entrar</button>
-      <button class="auth-tab" onclick="switchTab('register')">Registrarse</button>
-    </div>
-    <div class="auth-form">
-      <input class="input-field" id="auth-email" type="email" placeholder="Correo electrónico">
-      <input class="input-field" id="auth-pass"  type="password" placeholder="Contraseña">
-      <div class="auth-error" id="auth-error"></div>
-      <button class="btn-primary" id="auth-btn" onclick="doAuth()">Entrar</button>
-    </div>
-  </div>
-</div>
-
 <div id="app">
   <header>
     <div class="logo">Task<span>flow</span></div>
     <div class="header-center"><div class="header-date" id="header-date"></div></div>
     <div class="header-right">
-      <div class="sync-indicator"><div class="sync-dot" id="sync-dot"></div></div>
       <button class="theme-toggle" onclick="toggleTheme()" title="Cambiar tema"></button>
       <div class="view-toggle">
         <button class="view-btn active" onclick="setView('list')">Lista</button>
         <button class="view-btn" onclick="setView('calendar')">Calendario</button>
       </div>
-      <div class="user-badge" id="user-badge"></div>
-      <button class="btn-logout" onclick="doLogout()">Salir</button>
     </div>
   </header>
 
@@ -489,244 +465,287 @@
 
 <div class="toast" id="toast"></div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, orderBy }
-  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STORAGE LOCAL (sin Firebase)
+// ═══════════════════════════════════════════════════════════════
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBzKr2GiLfzEygQ8Ho2X6GESeE33mZOIfk",
-  authDomain: "taskflow-9d597.firebaseapp.com",
-  projectId: "taskflow-9d597",
-  storageBucket: "taskflow-9d597.firebasestorage.app",
-  messagingSenderId: "785843388512",
-  appId: "1:785843388512:web:0de9e819a40678061d8305"
-};
+const STORAGE_KEY = 'taskflow_tasks';
 
-const fireApp = initializeApp(firebaseConfig);
-const auth    = getAuth(fireApp);
-const db      = getFirestore(fireApp);
+function saveTasks() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+function loadTasks() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  return stored ? JSON.parse(stored) : [];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VARIABLES GLOBALES
+// ═══════════════════════════════════════════════════════════════
 
 const TODAY = (() => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 })();
 
-let tasks=[], currentView='list', currentFilter='all';
-let selectedPriority='mid', selectedCategory='personal';
-let mSelectedPriority='mid', mSelectedCategory='personal';
-let calYear, calMonth, currentUser=null, unsubTasks=null, authMode='login', dragId=null;
+let tasks = loadTasks();
+let currentView = 'list';
+let currentFilter = 'all';
+let selectedPriority = 'mid';
+let selectedCategory = 'personal';
+let mSelectedPriority = 'mid';
+let mSelectedCategory = 'personal';
+let calYear, calMonth, dragId = null;
 
-(() => { const d=new Date(); calYear=d.getFullYear(); calMonth=d.getMonth(); })();
+(() => { 
+  const d = new Date(); 
+  calYear = d.getFullYear(); 
+  calMonth = d.getMonth(); 
+})();
 
-// Theme
+// ═══════════════════════════════════════════════════════════════
+// TEMA
+// ═══════════════════════════════════════════════════════════════
+
 const savedTheme = localStorage.getItem('tf_theme') || 'dark';
 document.documentElement.setAttribute('data-theme', savedTheme);
 
 window.toggleTheme = function() {
   const cur = document.documentElement.getAttribute('data-theme');
-  const next = cur==='dark' ? 'light' : 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('tf_theme', next);
 };
 
-// Header date
+// ═══════════════════════════════════════════════════════════════
+// FECHA DEL HEADER
+// ═══════════════════════════════════════════════════════════════
+
 (() => {
-  const days=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
-  const months=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const d=new Date();
-  document.getElementById('header-date').textContent=`${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-  document.getElementById('task-date').value=TODAY;
-  document.getElementById('m-task-date').value=TODAY;
+  const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const d = new Date();
+  document.getElementById('header-date').textContent = `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  document.getElementById('task-date').value = TODAY;
+  document.getElementById('m-task-date').value = TODAY;
 })();
 
-// Helpers
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+
 function showToast(msg) {
-  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2200);
+  const t = document.getElementById('toast'); 
+  t.textContent = msg; 
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
 }
-function setSyncing(v) {
-  const dot=document.getElementById('sync-dot');
-  v ? dot.classList.add('syncing') : dot.classList.remove('syncing');
+
+function escH(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function escH(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
-function formatDate(str){if(!str)return'Sin fecha';const[y,m,d]=str.split('-');const mo=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];return`${parseInt(d)} ${mo[parseInt(m)-1]} ${y}`;}
-function dateLabel(str){
-  if(!str)return'Sin fecha';if(str===TODAY)return'Hoy';
-  const td=new Date(TODAY+'T00:00:00'),d=new Date(str+'T00:00:00');
-  const diff=Math.round((d-td)/86400000);
-  if(diff===1)return'Mañana';if(diff===-1)return'Ayer';
-  if(diff>0&&diff<7)return['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][d.getDay()];
+
+function formatDate(str) {
+  if (!str) return 'Sin fecha';
+  const [y,m,d] = str.split('-');
+  const mo = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return `${parseInt(d)} ${mo[parseInt(m)-1]} ${y}`;
+}
+
+function dateLabel(str) {
+  if (!str) return 'Sin fecha';
+  if (str === TODAY) return 'Hoy';
+  const td = new Date(TODAY+'T00:00:00');
+  const d = new Date(str+'T00:00:00');
+  const diff = Math.round((d-td)/86400000);
+  if (diff === 1) return 'Mañana';
+  if (diff === -1) return 'Ayer';
+  if (diff > 0 && diff < 7) return ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'][d.getDay()];
   return formatDate(str);
 }
 
-// Mobile sheet
+// ═══════════════════════════════════════════════════════════════
+// MOBILE SHEET
+// ═══════════════════════════════════════════════════════════════
+
 window.openSheet = function() {
-  document.getElementById('sheet-overlay').style.display='block';
-  document.getElementById('mobile-sheet').style.display='block';
-  setTimeout(()=>{
+  document.getElementById('sheet-overlay').style.display = 'block';
+  document.getElementById('mobile-sheet').style.display = 'block';
+  setTimeout(() => {
     document.getElementById('sheet-overlay').classList.add('open');
     document.getElementById('mobile-sheet').classList.add('open');
-  },10);
+  }, 10);
   document.getElementById('m-task-title').focus();
 };
+
 window.closeSheet = function() {
   document.getElementById('sheet-overlay').classList.remove('open');
   document.getElementById('mobile-sheet').classList.remove('open');
-  setTimeout(()=>{
-    document.getElementById('sheet-overlay').style.display='none';
-    document.getElementById('mobile-sheet').style.display='none';
-  },300);
+  setTimeout(() => {
+    document.getElementById('sheet-overlay').style.display = 'none';
+    document.getElementById('mobile-sheet').style.display = 'none';
+  }, 300);
 };
 
 window.openStats = function() {
   showToast(`Hoy: ${tasks.filter(t=>t.date===TODAY).length} · Pendientes: ${tasks.filter(t=>!t.done).length} · Hechas: ${tasks.filter(t=>t.done).length}`);
 };
 
-// Auth
-window.switchTab = function(mode) {
-  authMode=mode;
-  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&mode==='login')||(i===1&&mode==='register')));
-  document.getElementById('auth-btn').textContent=mode==='login'?'Entrar':'Crear cuenta';
-  document.getElementById('auth-error').textContent='';
-};
-window.doAuth = async function() {
-  const email=document.getElementById('auth-email').value.trim();
-  const pass=document.getElementById('auth-pass').value;
-  const btn=document.getElementById('auth-btn'), err=document.getElementById('auth-error');
-  if(!email||!pass){err.textContent='Rellena todos los campos';return;}
-  btn.disabled=true; err.textContent='';
-  try {
-    if(authMode==='login') await signInWithEmailAndPassword(auth,email,pass);
-    else await createUserWithEmailAndPassword(auth,email,pass);
-  } catch(e) {
-    const msgs={'auth/user-not-found':'Usuario no encontrado','auth/wrong-password':'Contraseña incorrecta',
-      'auth/email-already-in-use':'El correo ya está registrado','auth/weak-password':'Mínimo 6 caracteres',
-      'auth/invalid-email':'Correo no válido','auth/invalid-credential':'Correo o contraseña incorrectos'};
-    err.textContent=msgs[e.code]||'Error: '+e.message; btn.disabled=false;
-  }
-};
-window.doLogout = async function() { if(unsubTasks)unsubTasks(); await signOut(auth); };
-document.getElementById('auth-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('auth-pass').focus();});
-document.getElementById('auth-pass').addEventListener('keydown',e=>{if(e.key==='Enter')window.doAuth();});
+// ═══════════════════════════════════════════════════════════════
+// FORMULARIO
+// ═══════════════════════════════════════════════════════════════
 
-onAuthStateChanged(auth, user => {
-  document.getElementById('loading-screen').style.display='none';
-  if(user) {
-    currentUser=user;
-    document.getElementById('auth-screen').style.display='none';
-    document.getElementById('app').style.display='flex';
-    document.getElementById('user-badge').textContent=user.email;
-    startListening();
-  } else {
-    currentUser=null;
-    if(unsubTasks){unsubTasks();unsubTasks=null;}
-    tasks=[];
-    document.getElementById('app').style.display='none';
-    document.getElementById('auth-screen').style.display='flex';
-    document.getElementById('auth-btn').disabled=false;
-  }
-});
-
-function startListening() {
-  const q=query(collection(db,'tasks'),where('uid','==',currentUser.uid),orderBy('createdAt','asc'));
-  unsubTasks=onSnapshot(q,snap=>{
-    tasks=snap.docs.map(d=>({id:d.id,...d.data()}));
-    render(); setSyncing(false);
-  });
-}
-
-// Form
 window.selectPriority = function(el, ctx) {
-  const prefix = ctx==='mobile' ? '#mobile-sheet ' : '#desktop-form ';
-  document.querySelectorAll(prefix+'.priority-dot').forEach(d=>d.classList.remove('selected'));
+  const prefix = ctx === 'mobile' ? '#mobile-sheet ' : '#desktop-form ';
+  document.querySelectorAll(prefix + '.priority-dot').forEach(d => d.classList.remove('selected'));
   el.classList.add('selected');
-  if(ctx==='mobile'){mSelectedPriority=el.dataset.p;document.getElementById('m-p-label').textContent={low:'baja',mid:'media',high:'alta'}[mSelectedPriority];}
-  else{selectedPriority=el.dataset.p;document.getElementById('p-label').textContent={low:'baja',mid:'media',high:'alta'}[selectedPriority];}
-};
-window.selectCat = function(el, ctx) {
-  const prefix = ctx==='mobile' ? '#mobile-sheet ' : '#desktop-form ';
-  document.querySelectorAll(prefix+'.cat-pill').forEach(p=>p.classList.remove('sel'));
-  el.classList.add('sel');
-  if(ctx==='mobile') mSelectedCategory=el.dataset.c;
-  else selectedCategory=el.dataset.c;
+  if (ctx === 'mobile') {
+    mSelectedPriority = el.dataset.p;
+    document.getElementById('m-p-label').textContent = {low:'baja', mid:'media', high:'alta'}[mSelectedPriority];
+  } else {
+    selectedPriority = el.dataset.p;
+    document.getElementById('p-label').textContent = {low:'baja', mid:'media', high:'alta'}[selectedPriority];
+  }
 };
 
-async function submitTask(title, desc, date, priority, category) {
-  if(!title){showToast('Escribe un título');return false;}
-  setSyncing(true);
-  await addDoc(collection(db,'tasks'),{
-    uid:currentUser.uid, title, desc, date:date||null,
-    priority, category, done:false, createdAt:Date.now()
-  });
+window.selectCat = function(el, ctx) {
+  const prefix = ctx === 'mobile' ? '#mobile-sheet ' : '#desktop-form ';
+  document.querySelectorAll(prefix + '.cat-pill').forEach(p => p.classList.remove('sel'));
+  el.classList.add('sel');
+  if (ctx === 'mobile') mSelectedCategory = el.dataset.c;
+  else selectedCategory = el.dataset.c;
+};
+
+function submitTask(title, desc, date, priority, category) {
+  if (!title) {
+    showToast('Escribe un título');
+    return false;
+  }
+  
+  const newTask = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 9),
+    title,
+    desc,
+    date: date || null,
+    priority,
+    category,
+    done: false,
+    createdAt: Date.now(),
+    subtasks: []
+  };
+  
+  tasks.push(newTask);
+  saveTasks();
+  render();
   showToast('Tarea añadida ✓');
   return true;
 }
 
-window.addTask = async function() {
-  const ok = await submitTask(
+window.addTask = function() {
+  const ok = submitTask(
     document.getElementById('task-title').value.trim(),
     document.getElementById('task-desc').value.trim(),
     document.getElementById('task-date').value,
-    selectedPriority, selectedCategory
+    selectedPriority, 
+    selectedCategory
   );
-  if(ok){document.getElementById('task-title').value='';document.getElementById('task-desc').value='';document.getElementById('task-date').value=TODAY;}
+  if (ok) {
+    document.getElementById('task-title').value = '';
+    document.getElementById('task-desc').value = '';
+    document.getElementById('task-date').value = TODAY;
+  }
 };
 
-window.addTaskMobile = async function() {
-  const ok = await submitTask(
+window.addTaskMobile = function() {
+  const ok = submitTask(
     document.getElementById('m-task-title').value.trim(),
     document.getElementById('m-task-desc').value.trim(),
     document.getElementById('m-task-date').value,
-    mSelectedPriority, mSelectedCategory
+    mSelectedPriority, 
+    mSelectedCategory
   );
-  if(ok){document.getElementById('m-task-title').value='';document.getElementById('m-task-desc').value='';document.getElementById('m-task-date').value=TODAY;closeSheet();}
+  if (ok) {
+    document.getElementById('m-task-title').value = '';
+    document.getElementById('m-task-desc').value = '';
+    document.getElementById('m-task-date').value = TODAY;
+    closeSheet();
+  }
 };
 
-document.getElementById('task-title').addEventListener('keydown',e=>{if(e.key==='Enter')window.addTask();});
-document.getElementById('m-task-title').addEventListener('keydown',e=>{if(e.key==='Enter')window.addTaskMobile();});
+document.getElementById('task-title').addEventListener('keydown', e => {
+  if (e.key === 'Enter') window.addTask();
+});
 
-window.toggleDone = async function(id) {
-  const t=tasks.find(t=>t.id===id);
-  if(t){setSyncing(true);await updateDoc(doc(db,'tasks',id),{done:!t.done});}
-};
-window.deleteTask = async function(id) {
-  setSyncing(true); await deleteDoc(doc(db,'tasks',id)); showToast('Eliminada');
+document.getElementById('m-task-title').addEventListener('keydown', e => {
+  if (e.key === 'Enter') window.addTaskMobile();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// OPERACIONES CON TAREAS
+// ═══════════════════════════════════════════════════════════════
+
+window.toggleDone = function(id) {
+  const task = tasks.find(t => t.id === id);
+  if (task) {
+    task.done = !task.done;
+    saveTasks();
+    render();
+  }
 };
 
-// Filter/View
+window.deleteTask = function(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  saveTasks();
+  render();
+  showToast('Eliminada');
+};
+
+// ═══════════════════════════════════════════════════════════════
+// FILTROS Y VISTAS
+// ═══════════════════════════════════════════════════════════════
+
 window.setFilter = function(el) {
-  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active'); currentFilter=el.dataset.f; render();
-};
-function filteredTasks(){
-  return tasks.filter(t=>{
-    if(currentFilter==='today')   return t.date===TODAY;
-    if(currentFilter==='pending') return !t.done;
-    if(currentFilter==='done')    return t.done;
-    return true;
-  });
-}
-window.setView = function(v) {
-  currentView=v;
-  document.querySelectorAll('.view-btn').forEach((b,i)=>b.classList.toggle('active',(i===0&&v==='list')||(i===1&&v==='calendar')));
-  document.getElementById('list-view').style.display    =v==='list'?'flex':'none';
-  document.getElementById('calendar-view').style.display=v==='calendar'?'flex':'none';
-  document.getElementById('nav-list') && document.getElementById('nav-list').classList.toggle('active',v==='list');
-  document.getElementById('nav-cal')  && document.getElementById('nav-cal').classList.toggle('active',v==='calendar');
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentFilter = el.dataset.f;
   render();
 };
 
-function updateStats(){
-  document.getElementById('s-today').textContent   =tasks.filter(t=>t.date===TODAY).length;
-  document.getElementById('s-pending').textContent =tasks.filter(t=>!t.done).length;
-  document.getElementById('s-done').textContent    =tasks.filter(t=>t.done).length;
-  document.getElementById('s-total').textContent   =tasks.length;
+function filteredTasks() {
+  return tasks.filter(t => {
+    if (currentFilter === 'today') return t.date === TODAY;
+    if (currentFilter === 'pending') return !t.done;
+    if (currentFilter === 'done') return t.done;
+    return true;
+  });
 }
 
-const cat={work:'Trabajo',personal:'Personal',health:'Salud',learn:'Aprender',other:'Otro'};
+window.setView = function(v) {
+  currentView = v;
+  document.querySelectorAll('.view-btn').forEach((b, i) => 
+    b.classList.toggle('active', (i === 0 && v === 'list') || (i === 1 && v === 'calendar'))
+  );
+  document.getElementById('list-view').style.display = v === 'list' ? 'flex' : 'none';
+  document.getElementById('calendar-view').style.display = v === 'calendar' ? 'flex' : 'none';
+  document.getElementById('nav-list') && document.getElementById('nav-list').classList.toggle('active', v === 'list');
+  document.getElementById('nav-cal') && document.getElementById('nav-cal').classList.toggle('active', v === 'calendar');
+  render();
+};
+
+function updateStats() {
+  document.getElementById('s-today').textContent = tasks.filter(t => t.date === TODAY).length;
+  document.getElementById('s-pending').textContent = tasks.filter(t => !t.done).length;
+  document.getElementById('s-done').textContent = tasks.filter(t => t.done).length;
+  document.getElementById('s-total').textContent = tasks.length;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SUBTAREAS
+// ═══════════════════════════════════════════════════════════════
+
+const cat = {work:'Trabajo', personal:'Personal', health:'Salud', learn:'Aprender', other:'Otro'};
 const expandedTasks = new Set();
 const subPrios = {};
 
@@ -737,7 +756,7 @@ function subtaskRowHTML(s, parentId) {
     </button>
     <div class="subtask-body"><div class="subtask-title">${escH(s.title)}</div></div>
     <div class="subtask-meta">
-      ${s.date?`<span class="subtask-date">${formatDate(s.date)}</span>`:''}
+      ${s.date ? `<span class="subtask-date">${formatDate(s.date)}</span>` : ''}
       <button class="subtask-delete" onclick="deleteSubtask('${parentId}','${s.id}')">
         <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>
@@ -745,23 +764,24 @@ function subtaskRowHTML(s, parentId) {
   </div>`;
 }
 
-function taskCardHTML(t){
+function taskCardHTML(t) {
   const subs = t.subtasks || [];
-  const doneCount = subs.filter(s=>s.done).length;
+  const doneCount = subs.filter(s => s.done).length;
   const isExp = expandedTasks.has(t.id);
   const subPrio = subPrios[t.id] || 'mid';
-  return`<div class="task-wrapper ${isExp?'expanded':''}" id="wrap-${t.id}">
+  
+  return `<div class="task-wrapper ${isExp?'expanded':''}" id="wrap-${t.id}">
     <div class="task-card ${t.done?'done':''}" data-p="${t.priority}" data-id="${t.id}" draggable="true">
       <button class="task-check" onclick="toggleDone('${t.id}')">
         <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 3.5L4 6.5L9 1" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <div class="task-body" style="cursor:default">
         <div class="task-title">${escH(t.title)}</div>
-        ${t.desc?`<div class="task-desc">${escH(t.desc)}</div>`:''}
+        ${t.desc ? `<div class="task-desc">${escH(t.desc)}</div>` : ''}
       </div>
       <div class="task-meta">
-        ${subs.length>0?`<span class="subtask-count">${doneCount}/${subs.length}</span>`:''}
-        <span class="task-tag" data-c="${t.category}">${cat[t.category]||t.category}</span>
+        ${subs.length > 0 ? `<span class="subtask-count">${doneCount}/${subs.length}</span>` : ''}
+        <span class="task-tag" data-c="${t.category}">${cat[t.category] || t.category}</span>
         <button class="task-expand-btn ${isExp?'open':''}" onclick="toggleExpand('${t.id}')" title="Ver subtareas">
           <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -771,7 +791,7 @@ function taskCardHTML(t){
       </div>
     </div>
     <div class="subtasks-panel ${isExp?'open':''}" id="subs-${t.id}">
-      ${subs.map(s=>subtaskRowHTML(s,t.id)).join('')}
+      ${subs.map(s => subtaskRowHTML(s, t.id)).join('')}
       <div class="add-subtask-row">
         <input class="add-subtask-input" id="si-${t.id}" placeholder="Nueva subtarea..." onkeydown="if(event.key==='Enter')addSubtask('${t.id}')">
         <input type="date" class="add-subtask-date" id="sd-${t.id}" value="${t.date||''}">
@@ -787,130 +807,255 @@ function taskCardHTML(t){
 }
 
 window.toggleExpand = function(id) {
-  if(expandedTasks.has(id)) expandedTasks.delete(id);
+  if (expandedTasks.has(id)) expandedTasks.delete(id);
   else expandedTasks.add(id);
   renderList();
 };
 
 window.setSubPrio = function(taskId, prio, el) {
   subPrios[taskId] = prio;
-  el.closest('.subtask-prio-dots').querySelectorAll('.subtask-prio-dot').forEach(d=>d.classList.remove('selected'));
+  el.closest('.subtask-prio-dots').querySelectorAll('.subtask-prio-dot').forEach(d => d.classList.remove('selected'));
   el.classList.add('selected');
 };
 
-window.addSubtask = async function(parentId) {
-  const inp = document.getElementById('si-'+parentId);
+window.addSubtask = function(parentId) {
+  const inp = document.getElementById('si-' + parentId);
   const title = inp ? inp.value.trim() : '';
-  if(!title) return;
-  const date = document.getElementById('sd-'+parentId)?.value || null;
+  if (!title) return;
+  
+  const date = document.getElementById('sd-' + parentId)?.value || null;
   const prio = subPrios[parentId] || 'mid';
-  const t = tasks.find(t=>t.id===parentId);
-  if(!t) return;
-  const subs = t.subtasks || [];
-  subs.push({ id: Date.now().toString(36)+Math.random().toString(36).slice(2,5), title, date, priority:prio, done:false });
-  setSyncing(true);
-  await updateDoc(doc(db,'tasks',parentId),{subtasks:subs});
+  const task = tasks.find(t => t.id === parentId);
+  if (!task) return;
+  
+  const subs = task.subtasks || [];
+  subs.push({ 
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), 
+    title, 
+    date, 
+    priority: prio, 
+    done: false 
+  });
+  
+  task.subtasks = subs;
+  saveTasks();
   expandedTasks.add(parentId);
+  render();
+  
+  // Limpiar input
+  if (inp) inp.value = '';
 };
 
-window.toggleSubDone = async function(parentId, subId) {
-  const t = tasks.find(t=>t.id===parentId);
-  if(!t) return;
-  const subs = (t.subtasks||[]).map(s=>s.id===subId?{...s,done:!s.done}:s);
-  setSyncing(true);
-  await updateDoc(doc(db,'tasks',parentId),{subtasks:subs});
-};
-
-window.deleteSubtask = async function(parentId, subId) {
-  const t = tasks.find(t=>t.id===parentId);
-  if(!t) return;
-  const subs = (t.subtasks||[]).filter(s=>s.id!==subId);
-  setSyncing(true);
-  await updateDoc(doc(db,'tasks',parentId),{subtasks:subs});
-};
-
-function renderList(){
-  const lv=document.getElementById('list-view'), ft=filteredTasks();
-  if(!ft.length){lv.innerHTML=`<div class="no-tasks-msg"><p>Sin tareas</p><p>Añade una tarea con el botón +</p></div>`;return;}
-  const groups={};
-  ft.forEach(t=>{const k=t.date||'__nodate__';if(!groups[k])groups[k]=[];groups[k].push(t);});
-  const keys=Object.keys(groups).sort((a,b)=>{if(a==='__nodate__')return 1;if(b==='__nodate__')return -1;return a.localeCompare(b);});
-  lv.innerHTML=keys.map(k=>{
-    const isToday=k===TODAY,isNoDate=k==='__nodate__';
-    const label=isNoDate?'Sin fecha':dateLabel(k);
-    const showDate=!isNoDate&&label!==formatDate(k);
-    return`<div class="day-group ${isToday?'is-today':''}">
-      <div class="day-group-header">
-        <span class="day-group-label ${isToday?'today-label':''}">${label}</span>
-        ${showDate?`<span class="day-group-date">${formatDate(k)}</span>`:''}
-        <span class="day-group-count">${groups[k].length}</span>
-      </div>
-      <div class="day-divider"></div>
-      ${groups[k].map(t=>taskCardHTML(t)).join('')}
-    </div>`;
-  }).join('');
-  initDragList();
-}
-
-function renderCalendar(){
-  const months=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  document.getElementById('cal-month-title').textContent=`${months[calMonth]} ${calYear}`;
-  const firstDay=new Date(calYear,calMonth,1);
-  let so=firstDay.getDay()-1; if(so<0)so=6;
-  const dim=new Date(calYear,calMonth+1,0).getDate();
-  const dip=new Date(calYear,calMonth,0).getDate();
-  const total=Math.ceil((so+dim)/7)*7;
-  const tbd={};
-  tasks.forEach(t=>{if(t.date){if(!tbd[t.date])tbd[t.date]=[];tbd[t.date].push(t);}});
-  let html='';
-  for(let i=0;i<total;i++){
-    let dn,ds,isOther=false;
-    if(i<so){dn=dip-so+i+1;const m=calMonth===0?12:calMonth,y=calMonth===0?calYear-1:calYear;ds=`${y}-${String(m).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;isOther=true;}
-    else if(i>=so+dim){dn=i-so-dim+1;const m=calMonth===11?1:calMonth+2,y=calMonth===11?calYear+1:calYear;ds=`${y}-${String(m).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;isOther=true;}
-    else{dn=i-so+1;ds=`${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;}
-    const isToday=ds===TODAY,dt=tbd[ds]||[],vis=dt.slice(0,2),more=dt.length-vis.length;
-    html+=`<div class="cal-cell ${isOther?'other-month':''} ${isToday?'today':''}" data-date="${ds}"
-      ondragover="calDragOver(event,this)" ondrop="calDrop(event,'${ds}')" ondragleave="calDragLeave(this)" onclick="calCellClick('${ds}')">
-      <div class="cal-day-num">${dn}</div>
-      ${vis.map(t=>`<div class="cal-task-dot ${t.done?'done-dot':''}" data-p="${t.priority}">${escH(t.title)}</div>`).join('')}
-      ${more>0?`<div class="cal-more">+${more}</div>`:''}
-    </div>`;
-  }
-  document.getElementById('cal-grid').innerHTML=html;
-}
-
-window.calNav=function(dir){
-  if(dir===0){const d=new Date();calYear=d.getFullYear();calMonth=d.getMonth();}
-  else{calMonth+=dir;if(calMonth>11){calMonth=0;calYear++;}else if(calMonth<0){calMonth=11;calYear--;}}
-  renderCalendar();
-};
-window.calCellClick=function(dateStr){
-  document.getElementById('task-date').value=dateStr;
-  document.getElementById('m-task-date').value=dateStr;
-  window.setView('list');
-  currentFilter='all';
-  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('active',c.dataset.f==='all'));
+window.toggleSubDone = function(parentId, subId) {
+  const task = tasks.find(t => t.id === parentId);
+  if (!task) return;
+  
+  task.subtasks = (task.subtasks || []).map(s => 
+    s.id === subId ? {...s, done: !s.done} : s
+  );
+  
+  saveTasks();
   render();
 };
 
-function initDragList(){
-  document.querySelectorAll('.task-card[draggable]').forEach(card=>{
-    card.addEventListener('dragstart',e=>{dragId=card.dataset.id;card.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-    card.addEventListener('dragend',()=>{card.classList.remove('dragging');dragId=null;});
-  });
-}
-window.calDragOver =function(e,cell){e.preventDefault();cell.classList.add('drag-over');};
-window.calDragLeave=function(cell){cell.classList.remove('drag-over');};
-window.calDrop     =async function(e,ds){
-  e.preventDefault();
-  document.querySelectorAll('.cal-cell').forEach(c=>c.classList.remove('drag-over'));
-  if(!dragId)return;
-  setSyncing(true);
-  await updateDoc(doc(db,'tasks',dragId),{date:ds});
-  showToast(`Movida a ${dateLabel(ds)}`);
+window.deleteSubtask = function(parentId, subId) {
+  const task = tasks.find(t => t.id === parentId);
+  if (!task) return;
+  
+  task.subtasks = (task.subtasks || []).filter(s => s.id !== subId);
+  saveTasks();
+  render();
 };
 
-function render(){updateStats();if(currentView==='list')renderList();else renderCalendar();}
+// ═══════════════════════════════════════════════════════════════
+// RENDERIZADO
+// ═══════════════════════════════════════════════════════════════
+
+function renderList() {
+  const lv = document.getElementById('list-view');
+  const ft = filteredTasks();
+  
+  if (!ft.length) {
+    lv.innerHTML = `<div class="no-tasks-msg"><p>Sin tareas</p><p>Añade una tarea con el botón +</p></div>`;
+    return;
+  }
+  
+  const groups = {};
+  ft.forEach(t => {
+    const k = t.date || '__nodate__';
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(t);
+  });
+  
+  const keys = Object.keys(groups).sort((a, b) => {
+    if (a === '__nodate__') return 1;
+    if (b === '__nodate__') return -1;
+    return a.localeCompare(b);
+  });
+  
+  lv.innerHTML = keys.map(k => {
+    const isToday = k === TODAY;
+    const isNoDate = k === '__nodate__';
+    const label = isNoDate ? 'Sin fecha' : dateLabel(k);
+    const showDate = !isNoDate && label !== formatDate(k);
+    
+    return `<div class="day-group ${isToday?'is-today':''}">
+      <div class="day-group-header">
+        <span class="day-group-label ${isToday?'today-label':''}">${label}</span>
+        ${showDate ? `<span class="day-group-date">${formatDate(k)}</span>` : ''}
+        <span class="day-group-count">${groups[k].length}</span>
+      </div>
+      <div class="day-divider"></div>
+      ${groups[k].map(t => taskCardHTML(t)).join('')}
+    </div>`;
+  }).join('');
+  
+  initDragList();
+}
+
+function renderCalendar() {
+  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('cal-month-title').textContent = `${months[calMonth]} ${calYear}`;
+  
+  const firstDay = new Date(calYear, calMonth, 1);
+  let so = firstDay.getDay() - 1; 
+  if (so < 0) so = 6;
+  
+  const dim = new Date(calYear, calMonth + 1, 0).getDate();
+  const dip = new Date(calYear, calMonth, 0).getDate();
+  const total = Math.ceil((so + dim) / 7) * 7;
+  
+  const tbd = {};
+  tasks.forEach(t => {
+    if (t.date) {
+      if (!tbd[t.date]) tbd[t.date] = [];
+      tbd[t.date].push(t);
+    }
+  });
+  
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    let dn, ds, isOther = false;
+    
+    if (i < so) {
+      dn = dip - so + i + 1;
+      const m = calMonth === 0 ? 12 : calMonth;
+      const y = calMonth === 0 ? calYear - 1 : calYear;
+      ds = `${y}-${String(m).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;
+      isOther = true;
+    } else if (i >= so + dim) {
+      dn = i - so - dim + 1;
+      const m = calMonth === 11 ? 1 : calMonth + 2;
+      const y = calMonth === 11 ? calYear + 1 : calYear;
+      ds = `${y}-${String(m).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;
+      isOther = true;
+    } else {
+      dn = i - so + 1;
+      ds = `${calYear}-${String(calMonth + 1).padStart(2,'0')}-${String(dn).padStart(2,'0')}`;
+    }
+    
+    const isToday = ds === TODAY;
+    const dt = tbd[ds] || [];
+    const vis = dt.slice(0, 2);
+    const more = dt.length - vis.length;
+    
+    html += `<div class="cal-cell ${isOther?'other-month':''} ${isToday?'today':''}" data-date="${ds}"
+      ondragover="calDragOver(event,this)" ondrop="calDrop(event,'${ds}')" ondragleave="calDragLeave(this)" onclick="calCellClick('${ds}')">
+      <div class="cal-day-num">${dn}</div>
+      ${vis.map(t => `<div class="cal-task-dot ${t.done?'done-dot':''}" data-p="${t.priority}">${escH(t.title)}</div>`).join('')}
+      ${more > 0 ? `<div class="cal-more">+${more}</div>` : ''}
+    </div>`;
+  }
+  
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+window.calNav = function(dir) {
+  if (dir === 0) {
+    const d = new Date();
+    calYear = d.getFullYear();
+    calMonth = d.getMonth();
+  } else {
+    calMonth += dir;
+    if (calMonth > 11) {
+      calMonth = 0;
+      calYear++;
+    } else if (calMonth < 0) {
+      calMonth = 11;
+      calYear--;
+    }
+  }
+  renderCalendar();
+};
+
+window.calCellClick = function(dateStr) {
+  document.getElementById('task-date').value = dateStr;
+  document.getElementById('m-task-date').value = dateStr;
+  window.setView('list');
+  currentFilter = 'all';
+  document.querySelectorAll('.chip').forEach(c => 
+    c.classList.toggle('active', c.dataset.f === 'all')
+  );
+  render();
+};
+
+// ═══════════════════════════════════════════════════════════════
+// DRAG & DROP
+// ═══════════════════════════════════════════════════════════════
+
+function initDragList() {
+  document.querySelectorAll('.task-card[draggable]').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      dragId = card.dataset.id;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      dragId = null;
+    });
+  });
+}
+
+window.calDragOver = function(e, cell) {
+  e.preventDefault();
+  cell.classList.add('drag-over');
+};
+
+window.calDragLeave = function(cell) {
+  cell.classList.remove('drag-over');
+};
+
+window.calDrop = function(e, ds) {
+  e.preventDefault();
+  document.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('drag-over'));
+  if (!dragId) return;
+  
+  const task = tasks.find(t => t.id === dragId);
+  if (task) {
+    task.date = ds;
+    saveTasks();
+    render();
+    showToast(`Movida a ${dateLabel(ds)}`);
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER PRINCIPAL
+// ═══════════════════════════════════════════════════════════════
+
+function render() {
+  updateStats();
+  if (currentView === 'list') renderList();
+  else renderCalendar();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INICIALIZACIÓN
+// ═══════════════════════════════════════════════════════════════
+
+render();
+
 </script>
 </body>
 </html>
